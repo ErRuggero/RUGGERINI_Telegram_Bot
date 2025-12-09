@@ -1,3 +1,7 @@
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+
 public class User
 {
     // Uguale ai valori del json
@@ -7,6 +11,9 @@ public class User
     private long last_online;
     private String status;
     private Elo elo;
+
+    // Attributi calcolati
+    private String last_online_date;
 
     public User(int player_id, String username, String countryURL, long last_online, String status)
     {
@@ -28,8 +35,14 @@ public class User
         return parts[parts.length - 1];  // Restituisci l'ultima parte (il codice paese)
     }
 
-    public void setCountryFromUrl() {
+    public void setCountryFromUrlAndDate()
+    {
         this.country = extractCountryCode(this.country);  // Estrai il codice paese dalla URL
+
+        // Converte in una data leggibile partendo dal valore epoch
+        this.last_online_date = Instant.ofEpochSecond(this.last_online)
+                .atZone(ZoneId.systemDefault())
+                .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
     }
 
     public void setElo(Elo elo)
@@ -43,7 +56,7 @@ public class User
         return "Player ID: \t" + player_id +
                 "\nUsername: \t" + username +
                 "\nCountry: \t" + country +
-                "\nLast Online: \t" + last_online +
+                "\nLast Online: \t" + last_online_date +
                 "\nStatus: \t" + status;
     }
 

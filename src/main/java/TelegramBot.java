@@ -28,9 +28,7 @@ public class TelegramBot implements LongPollingSingleThreadUpdateConsumer
             else if (input.startsWith("/userinfo "))
             {
                 String user = input.substring(input.indexOf(" ") + 1);
-
                 String result = chesscomAPI.fetchPlayer(user);
-
                 message = new SendMessage(update.getMessage().getChatId().toString(), result);
             }
             else if (input.startsWith("/userelo "))

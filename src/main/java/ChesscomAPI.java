@@ -40,10 +40,8 @@ public class ChesscomAPI
             user = deserializzatore.fromJson(responseUser.body(), User.class);
 
             // TODO : RIMUOVERE QUESTA COSA E FARLA FUNZIONARE NEL COSTRUTTORE
-            user.setCountryFromUrl();
+            user.setCountryFromUrlAndDate();
             System.out.println(user.toString());
-
-            //return user.toString();
         }
         catch (IOException | InterruptedException e)
         {
@@ -63,8 +61,9 @@ public class ChesscomAPI
         try
         {
             HttpResponse<String> responseElo = client.send(request, HttpResponse.BodyHandlers.ofString());
-            Gson deserializzatore = new Gson();
-            Elo elo = deserializzatore.fromJson(responseElo.body(), Elo.class);
+            Gson deserializer = new Gson();
+            Elo elo = deserializer.fromJson(responseElo.body(), Elo.class);
+            elo.normalize();
 
             user.setElo(elo);
         }
