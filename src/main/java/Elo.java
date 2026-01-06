@@ -24,7 +24,8 @@ public class Elo
     }
 
     // no-arg constructor necessario per Gson
-    public Elo() {}
+    public Elo()
+    {}
 
     // Chiamare questo metodo subito dopo il parsing per normalizzare i campi mancanti
     public void normalize()
@@ -78,7 +79,8 @@ public class Elo
         }
 
         // no-arg constructor necessario per Gson
-        public GameMode() {}
+        public GameMode()
+        {}
 
         // Assicura che i sotto-oggetti non siano null e imposta default pragmatici
         void ensureDefaults()
@@ -124,12 +126,14 @@ public class Elo
         }
 
         // no-arg constructor con valori null (mancanti)
-        public Last() {}
+        public Last()
+        {}
 
         // Calcola e imposta date_converted a partire da date (epoch secondi)
         public void updateDateConverted()
         {
-            if (date == null) {
+            if (date == null)
+            {
                 date_converted = null;
                 return;
             }
@@ -166,12 +170,14 @@ public class Elo
             this.date = date;
         }
 
-        public Best() {}
+        public Best()
+        {}
 
         // Calcola e imposta date_converted a partire da date (epoch secondi)
         public void updateDateConverted()
         {
-            if (date == null) {
+            if (date == null)
+            {
                 date_converted = null;
                 return;
             }

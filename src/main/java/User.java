@@ -64,5 +64,4 @@ public class User
     {
         return (toString() + "\n" + elo.toString());
     }
-
 }
