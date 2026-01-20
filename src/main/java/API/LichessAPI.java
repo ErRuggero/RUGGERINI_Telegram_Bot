@@ -1,4 +1,8 @@
+package API;
+
+import DatabaseManagers.DatabaseManager;
 import com.google.gson.Gson;
+import database.Database;
 import org.telegram.telegrambots.meta.api.objects.InputFile;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -8,6 +12,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.regex.Pattern;
+
+import Deserialized.*;
+
 
 public class LichessAPI
 {
@@ -16,7 +24,7 @@ public class LichessAPI
     private static LichessAPI instance;
     private Gson deserializzatore = new Gson();
 
-    private Map<Long, Puzzle> puzzleMap = new HashMap<>();          // Tiene conto di chi fa quale puzzle [chatId, Puzzle]
+    private Map<Long, Puzzle> puzzleMap = new HashMap<>();          // Tiene conto di chi fa quale puzzle [chatId, Deserializzati.Puzzle]
     private Map<Long, Integer> puzzleIndexMap = new HashMap<>();    // Salva a che punto della soluzione è il puzzle [chatId, Integer]
 
     public LichessAPI()
@@ -87,69 +95,96 @@ public class LichessAPI
         // -------------------------------------------------------------------
         // 2. RICHIESTA PUZZLE E ASSEGNAZIONE PUZZLE
 
-        Puzzle puzzle;
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(endpointFine))
-                .GET()
-                .build();
+        Puzzle puzzle = null;
+        int tentativi = 0;
 
-        try
+        do
         {
-            HttpResponse<String> responseUser = client.send(request, HttpResponse.BodyHandlers.ofString());
+            tentativi++;
 
-            // Deserializza il puzzle
-            puzzle = deserializzatore.fromJson(responseUser.body(), Puzzle.class);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(endpointFine))
+                    .GET()
+                    .build();
 
-            // Mostra le soluzioni in console
-            System.out.println("Utente: " + chatId.toString() + "\nSoluzione (pos dispari = user): " + puzzle.getSolution().toString());
+            try
+            {
+                HttpResponse<String> responseUser = client.send(request, HttpResponse.BodyHandlers.ofString());
 
-            // Salva chi fa quale puzzle
-            puzzleMap.put(chatId, puzzle);
-
-            // Salva a che punto della soluzione è il puzzle (0 perché è inizio)
-            puzzleIndexMap.put(chatId, 0);
-
-            // Prelevo il FEN iniziale del puzzle
-            Chesslib chesslib = Chesslib.getInstance();
-            String inizioFen = chesslib.convertPGNToFEN(puzzle.getPgn());
-
-            // Salva nel puzzle il FEN
-            puzzle.setFen(inizioFen);
+                // Deserializza il puzzle
+                puzzle = deserializzatore.fromJson(responseUser.body(), Puzzle.class);
+            }
+            catch (Exception e)
+            {
+                System.err.println("Errore nella richiesta API: " + e.getMessage());
+                return null;
+            }
         }
-        catch (Exception e)
-        {
-            System.err.println("Errore nella richiesta API: " + e.getMessage());
-            return null;
-        }
+        while (!hasMateInTheme(puzzle));
+
+        // Mostra le soluzioni in console
+        System.out.println("Tentativi: " + tentativi + " ----- Utente: " + chatId.toString() + " ----- Soluzione (pos dispari = user): " + puzzle.getSolution().toString());
+
+        // Salva chi fa quale puzzle
+        puzzleMap.put(chatId, puzzle);
+
+        // Salva a che punto della soluzione è il puzzle (0 perché è inizio)
+        puzzleIndexMap.put(chatId, 0);
+
+        // Prelevo il FEN iniziale del puzzle
+        Chesslib chesslib = Chesslib.getInstance();
+        String inizioFen = chesslib.convertPGNToFEN(puzzle.getPgn());
+
+        // Salva nel puzzle il FEN
+        puzzle.setFen(inizioFen);
+        puzzle.setInizialFen(inizioFen);
 
         // -------------------------------------------------------------------
         // 3. CREAZIONE DELLA SCACCHIERA
 
-        try
-        {
-            Chesslib chesslib = Chesslib.getInstance();
 
-            // Ritorna l'immagine della scacchiera
-            return chesslib.createPuzzleWithPGN(puzzle.getPgn());
-        }
-        catch (Exception e)
-        {
-            return null;
-        }
+        // Ritorna l'immagine della scacchiera
+        /// TODO : TOGLIERE IL PGN E FARE IN MODO CHE VADA SOLO CON IL FEN!!!!
+        //return chesslib.createPuzzleWithPGN(puzzle.getPgn());
+
+        return chesslib.showBoard(inizioFen);
     }
 
     public InputFile fetchPuzzleRandom(Long chatId)
     {
-        Random random = new Random();
-
         // Valore random tra 1 e 5 compreso
         return fetchPuzzle(chatId, String.valueOf((int)(Math.random() * 5) + 1));
     }
 
-    public int checkPuzzle(Long chatId, String risposta)
+    public InputFile fetchFavouritePuzzle(Long chatId, String fen, String solutions)
+    {
+        // Crea un puzzle con fen del DB e lo setta
+        Puzzle puzzle = new Puzzle();
+        puzzle.setFen(fen);
+        puzzle.setInizialFen(fen);
+
+        // Converte la stringa solutions in List<String>
+        String stringa = solutions.substring(1, solutions.length() - 1);
+        List<String> listaSoluzioni = List.of(stringa.split(",\\s*"));
+
+        // Setta le soluzioni
+        puzzle.setSolution(listaSoluzioni);
+
+        // Salva chi fa quale puzzle
+        puzzleMap.put(chatId, puzzle);
+
+        // Salva a che punto della soluzione è il puzzle (0 perché inizio)
+        puzzleIndexMap.put(chatId, 0);
+
+        // Ritorna l'immagine della scacchiera
+        Chesslib chesslib = Chesslib.getInstance();
+        return chesslib.showBoard(puzzle.getFen());
+    }
+
+    public int checkPuzzle(Long chatId, String risposta, boolean keepPlaying)
     {
         // -------------------------------------------------------------------
-        // 1. PRELEVAMENTO PUZZLE
+        // 1. PRELEVAMENTO PUZZLE E CONTROLLO SE CONTINUARE A GIOCARE O QUITTARE
 
         if (puzzleMap.get(chatId) == null)
         {
@@ -157,16 +192,39 @@ public class LichessAPI
             return -1;
         }
 
+        // Controlla che l'utente abbia inserito una possibile mossa
+        if (risposta.length() != 4 && !risposta.equals("/quit"))
+        {
+            return -2;
+        }
+
         // Preleva il puzzle associato all'id e le sue soluzioni
         Puzzle puzzle = puzzleMap.get(chatId);
-        List<String> solution = puzzle.getSolution();
+        List<String> listaSoluzioni = puzzle.getSolution();
 
         // Preleva indice del punto a cui si è arrivati
         int index = puzzleIndexMap.get(chatId);
 
+        // Se bisogna smettere...
+        if (keepPlaying == false)
+        {
+            try
+            {
+                // Salva nel database dei puzzle che l'utente ha perso
+                DatabaseManager.databasePuzzleManager.addPuzzleStat(chatId, puzzle, false);
+                puzzleMap.remove(chatId);
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+
+            return 0;
+        }
+
         // Se si è arrivati ad un punto dove più soluzione del massimo possibile
         // (è impossibile, ma nel caso...)
-        if (index >= solution.size())
+        if (index >= listaSoluzioni.size())
         {
             // ERRORE
             return -1;
@@ -175,27 +233,30 @@ public class LichessAPI
         // -------------------------------------------------------------------
         // 2. CHECK PUZZLE
 
+        // Aumenta il numero di mosse fatte
+        puzzle.increaseMoves();
+
         // Controllo soluzione
         // (la mossa del player è sempre pari nelle soluzioni, perché dispari è il nero)
         if (index % 2 == 0)
         {
             // Se corretto...
-            if (risposta.equals(solution.get(index)))
+            if (risposta.equals(listaSoluzioni.get(index)))
             {
                 try
                 {
                     // ... fai la mossa
                     Chesslib chesslib = Chesslib.getInstance();
-                    String nuovoFen = chesslib.makeMove(puzzle.getFen(), solution.get(index));
+                    String nuovoFen = chesslib.makeMove(puzzle.getFen(), listaSoluzioni.get(index));
 
                     // Salva il nuovo FEN
                     puzzle.setFen(nuovoFen);
 
                     // Controllo se esistono altre soluzioni, e se sì muove allora il nero
-                    if (index + 1 < solution.size() && (index + 1) % 2 == 1)
+                    if (index + 1 < listaSoluzioni.size() && (index + 1) % 2 == 1)
                     {
                         // Mossa del nero e salvataggio del FEN
-                        nuovoFen = chesslib.makeMove(puzzle.getFen(), solution.get(index + 1));
+                        nuovoFen = chesslib.makeMove(puzzle.getFen(), listaSoluzioni.get(index + 1));
                         puzzle.setFen(nuovoFen);
                         puzzleIndexMap.put(chatId, index + 2);
                     }
@@ -206,9 +267,12 @@ public class LichessAPI
                     }
 
                     // Se index supera lunghezza delle soluzioni, allora fine
-                    if (puzzleIndexMap.get(chatId) >= solution.size())
+                    if (puzzleIndexMap.get(chatId) >= listaSoluzioni.size())
                     {
-                        // FINITO CORRETTAMENTE
+                        // Salva nel database che ha vinto
+                        DatabaseManager.databasePuzzleManager.addPuzzleStat(chatId, puzzle, true);
+
+                        // VINTO
                         return 2;
                     }
                     else
@@ -235,6 +299,12 @@ public class LichessAPI
         return -1;
     }
 
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+
     public InputFile getCurrentBoard(Long chatId)
     {
         // Controlla se esiste un puzzle per quell'id
@@ -243,6 +313,7 @@ public class LichessAPI
             return null;
         }
 
+        // Nel caso lo preleva
         Puzzle puzzle = puzzleMap.get(chatId);
 
         // Se esiste una partita per quel user, allora stampa la scacchiera
@@ -255,5 +326,28 @@ public class LichessAPI
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public boolean hasMateInTheme(Puzzle puzzle)
+    {
+        // FA IN MODO CHE CONTINUI A CICLARE TUTTI I PUZZLE FINCHE' NON TROVA UN PUZZLE DOVE SI DEVE FARE SCACCO MATTO
+
+        if (puzzle == null || puzzle.getThemes() == null)
+            return false;
+
+        Pattern pattern = Pattern.compile("mateIn\\d+");
+
+        for (String tema : puzzle.getThemes())
+        {
+            if (pattern.matcher(tema).matches())
+                return true;
+        }
+
+        return false;
+    }
+
+    public Puzzle getPuzzleWithId(Long chatId)
+    {
+        return puzzleMap.get(chatId);
     }
 }

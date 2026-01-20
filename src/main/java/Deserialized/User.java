@@ -1,3 +1,5 @@
+package Deserialized;
+
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -53,11 +55,30 @@ public class User
     @Override
     public String toString()
     {
+        /*
         return "Player ID: \t" + player_id +
                 "\nUsername: \t" + username +
                 "\nCountry: \t" + country +
                 "\nLast Online: \t" + last_online_date +
                 "\nStatus: \t" + status;
+
+         */
+
+        return """
+           ─────────── USER INFO ───────────
+           ID Player   : %d
+           Username    : %s
+           Country     : %s
+           Last Online : %s
+           Status      : %s
+           ─────────────────────────────────
+           """.formatted(
+                player_id,
+                username,
+                country,
+                last_online_date,
+                status
+        );
     }
 
     public String allToString()

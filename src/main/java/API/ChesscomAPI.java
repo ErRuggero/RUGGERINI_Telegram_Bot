@@ -1,3 +1,5 @@
+package API;
+
 import com.google.gson.Gson;
 import org.telegram.telegrambots.meta.api.objects.InputFile;
 import javax.imageio.ImageIO;
@@ -10,9 +12,11 @@ import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.*;
 
-public class ChesscomAPI {
+import Deserialized.*;
+
+public class ChesscomAPI
+{
     private final String endpointBase = "https://api.chess.com/pub/";
     private HttpClient client = HttpClient.newHttpClient();
     private static ChesscomAPI instance;
